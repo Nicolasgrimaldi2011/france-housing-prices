@@ -1,0 +1,11 @@
+# Secrets
+.env
+
+# Data (too big, downloaded by the loader)
+data/
+*.zip
+ValeursFoncieres-*.txt
+
+# Python
+__pycache__/
+venv/
