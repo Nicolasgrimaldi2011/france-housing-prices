@@ -1,6 +1,16 @@
 import os
 import psycopg
 import csv
+import time
+import urllib.request
+import zipfile
+
+DOWNLOAD_URLS = {
+    2022: "https://www.data.gouv.fr/api/1/datasets/r/330aead3-b527-4c0f-8c9a-a82a9b928816",
+    2023: "https://www.data.gouv.fr/api/1/datasets/r/ddbd3eff-2d18-420c-a1d6-37f14a2fcc2c",
+    2024: "https://www.data.gouv.fr/api/1/datasets/r/24d0313f-8f07-4514-bf7d-e1d274e61ecc",
+    2025: "https://www.data.gouv.fr/api/1/datasets/r/63c368e8-72b9-4f35-8315-80c21fcc575d",
+}
 
 def clean_price(text):
     return text.replace(",", ".")
@@ -13,6 +23,25 @@ def make_insee(department, commune):
     if len(department) == 3:
         return department + commune.zfill(2)
     return department.zfill(2) + commune.zfill(3)
+
+def get_file(year):
+    txt_path = f"/data/ValeursFoncieres-{year}.txt"
+
+    if os.path.exists(txt_path):
+        print(year, ": file already in /data")
+        return txt_path
+
+    zip_path = f"/data/valeursfoncieres-{year}.zip"
+    print(year, ": downloading from data.gouv.fr")
+    urllib.request.urlretrieve(DOWNLOAD_URLS[year], zip_path)
+
+    with zipfile.ZipFile(zip_path) as z:
+        name_inside = z.namelist()[0]
+        z.extractall("/data")
+
+    os.rename(f"/data/{name_inside}", txt_path)
+    os.remove(zip_path)
+    return txt_path
 
 connection= psycopg.connect(
     host="db",
@@ -44,8 +73,10 @@ connection.execute("""
 connection.commit()
 print('table sales is ready')
 
+start_all = time.perf_counter()
 for year in years:
-    file_path = f"/data/ValeursFoncieres-{year}.txt"
+    start = time.perf_counter()
+    file_path = get_file(year)
     print("Loading", file_path)
 
     f = open(file_path, encoding="utf-8")
@@ -80,6 +111,9 @@ for year in years:
 
     connection.commit()
     f.close()
-    print(year, ": rows inserted:", count)
+    duration = time.perf_counter() - start
+    print(year, ": rows inserted:", count, "in", round(duration, 1), "s")
 
+total = time.perf_counter() - start_all
+print("Total load time:", round(total, 1), "s")
 connection.close()
