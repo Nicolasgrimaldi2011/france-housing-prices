@@ -11,6 +11,8 @@ services:
   loader: 
     build: ./loader
     env_file: .env
+    volumes: 
+      - ./data:/data
     depends_on:
       db:
         condition: service_healthy
