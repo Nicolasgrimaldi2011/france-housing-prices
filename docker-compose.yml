@@ -4,5 +4,16 @@ services:
     env_file: .env
     volumes: 
       - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dvf_user -d dvf"]
+      interval: 5s
+
+  loader: 
+    build: ./loader
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes: 
   dbdata:
