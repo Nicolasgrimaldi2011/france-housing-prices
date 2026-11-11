@@ -116,4 +116,14 @@ for year in years:
 
 total = time.perf_counter() - start_all
 print("Total load time:", round(total, 1), "s")
+
+start = time.perf_counter()
+with open("/sql/clean.sql", encoding="utf-8") as f:
+    clean_sql = f.read()
+connection.execute(clean_sql)
+connection.commit()
+duration = time.perf_counter() - start
+print("Table clean_sales created in", round(duration, 1), "s")
+
+
 connection.close()

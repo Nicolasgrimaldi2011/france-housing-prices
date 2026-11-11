@@ -29,11 +29,21 @@ Nicolas Grimaldi, individual project (non-attending student)
 
 **Download:** the data files are not in this repository. The loader downloads them automatically from the stable URLs of data.gouv.fr when it starts, unzips them into the `data/` folder, and skips this step if the files are already there.
 
+## Processing
+After loading, the loader runs `sql/clean.sql` and keeps only clean sales in a new table, `clean_sales`:
+- sales of a single dwelling (when several flats are sold together, each row shows the total price),
+- a price per m² between 500 and 25,000 € (to remove symbolic sales like 1 €),
+- a surface of at least 9 m².
+
+This keeps 2,959,106 sales out of 4,607,751. The analysis queries are in `sql/queries.sql`.
+
 ## Architecture
 ![Architecture](docs/FranceHousingProjectArchitectureGRIMALDI.drawio.png)
 - **db**: PostgreSQL database, stores the sales
 - **loader**: downloads the DVF files, cleans them and puts them in the database, then stops
 - **app**: Streamlit dashboard, reads the database and shows the results
+
+**Why PostgreSQL:** every DVF sale has the same columns (date, price, town, type of property, surface), so the data fits well in a SQL table with a fixed structure. The main questions of the project are groupings and averages, such as the median price per m² by town and by year, which SQL does very well. PostgreSQL also runs as its own container, so the loader and the dashboard can both connect to the same database over the Docker network.
 
 ## Measurements
 
