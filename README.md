@@ -37,6 +37,12 @@ After loading, the loader runs `sql/clean.sql` and keeps only clean sales in a n
 
 This keeps 2,959,106 sales out of 4,607,751. The analysis queries are in `sql/queries.sql`.
 
+## Dashboard
+Once everything is loaded, the dashboard opens at http://localhost:8501. It shows:
+- the median price per m² in France for each year, with a chart,
+- the 20 cities where the price per m² rose the most between 2022 and 2025, and the 20 where it fell the most (only cities with at least 100 sales in both years),
+- a search box to choose one city and see its median price per m² year by year.
+
 ## Architecture
 ![Architecture](docs/FranceHousingProjectArchitectureGRIMALDI.drawio.png)
 - **db**: PostgreSQL database, stores the sales
