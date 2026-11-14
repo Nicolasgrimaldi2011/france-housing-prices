@@ -7,14 +7,14 @@ Nicolas Grimaldi, individual project (non-attending student)
 ## How to run
 1. Install Docker Desktop
 2. Get the code by doing: `git clone https://github.com/Nicolasgrimaldi2011/france-housing-prices.git`
-3. Get into the file by doing: `cd france-housing-prices`
+3. Go into the folder by doing: `cd france-housing-prices`
 4. Create the .env file by using the .env example from Github:
     - if you are on Windows it's: `copy .env.example .env`
     - if you are on Mac or Linux it's: `cp .env.example .env`
 5. Run: `docker compose up`
     - This is to start the whole system (Docker Desktop must be running)
     - The command creates the images and starts the three containers in the right order
-    - The first start downloads the 4 DVF files from data.gouv.fr (about 300 MB) and loads them into the database. It takes about 5 minutes.
+    - The first start downloads the 4 DVF files from data.gouv.fr (about 300 MB) and loads them into the database. It takes about 5 to 7 minutes.
 6. Once the containers are running, open your web browser and go to http://localhost:8501 to see the dashboard. 
 
 ## Data
@@ -53,4 +53,59 @@ Once everything is loaded, the dashboard opens at http://localhost:8501. It show
 
 ## Measurements
 
+Measured with `measure/benchmark.py`, the loader output and `docker stats`.
+Laptop: Intel i5-1335U, 16 GB RAM (7.6 GB available to Docker), plugged in, other programs closed.
+Load and cleaning times: average of 3 runs. Memory: peak seen in one run with `docker stats`.
+To run the benchmark: set `YEARS` in `.env` (e.g. `YEARS=2025` for 25%), run `docker compose down -v` and `docker compose up`, then `docker compose run --rm --no-deps loader python /measure/benchmark.py`.
+
+| | 25% (2025) | 50% (2024-2025) | 100% (2022-2025) |
+|---|---|---|---|
+| Rows in `sales` | 1,130,632 | 2,121,699 | 4,607,751 |
+| Rows in `clean_sales` | 731,396 | 1,368,462 | 2,959,106 |
+| **Time**: load | 52.2 s | 94.9 s | 247.3 s |
+| **Time**: create `clean_sales` | 3.3 s | 6.8 s | 20.7 s |
+| **Disk**: original text files | 507 MB | 975 MB | 2,114 MB |
+| **Disk**: database | 178 MB | 327 MB | 697 MB |
+| **Memory**: `db` (peak) | 207 MiB | 348 MiB | 711 MiB |
+| **Memory**: `loader` (peak) | 25 MiB | 24 MiB | 24 MiB |
+
+One-city query (Marseille 1er), average of 3 runs:
+
+| | 25% | 50% | 100% |
+|---|---|---|---|
+| Without index | 31.7 ms | 39.3 ms | 74.7 ms |
+| With index on `insee_code` | 1.1 ms | 1.2 ms | 4.0 ms |
+| Speed-up | x28 | x32 | x19 |
+
+What I learned:
+- Load time and disk grow about linearly with the data.
+- Creating `clean_sales` grows faster than the data (x2, then x3), probably because the duplicate check has to sort all rows.
+- The loader memory stays the same at every size, because it streams the file row by row with `COPY`.
+- The database is about 3 times smaller than the text files: only houses and flats, and only 9 columns.
+- The index makes the dashboard query 19 to 32 times faster.
+
 ## What went wrong
+
+**1. Downloading costs more disk time than network time.**
+A first run with download took 282.5 s instead of about 195 s. At 85 Mbps, downloading the 295 MB of zip files takes only about 28 s; the rest is unzipping, which writes about 2 GB of text to the disk.
+Lesson: the bottleneck here is the disk, not the network.
+
+**2. Ctrl+C stops every service, including the database.**
+Ctrl+C on `docker compose up` stops all containers. `docker compose run --no-deps` then failed with `Name or service not known`, because `db` was not running.
+Fix: `docker compose up -d db` before running the benchmark.
+
+**3. The table grew after each reload.**
+Reloading many times with `DELETE` + `COPY` left dead rows: `sales` took 534 MB, but only 392 MB after a fresh start (`down -v`).
+Lesson: compare disk sizes on a fresh database.
+
+**4. Noisy measurements.**
+My first 50% loads were done with the laptop on battery and busy: the same 2025 file took about 110 s instead of about 50 s.
+Fix: all measurements done again with the laptop plugged in and other programs closed, 3 runs each, and the first (cold) benchmark run ignored.
+
+**5. Cleaning does not scale linearly.**
+Creating `clean_sales` takes 3.3 s, 6.8 s, then 20.7 s (x2, then x3), probably because the one-dwelling rule needs a `GROUP BY` that sorts all rows.
+Lesson: this step would be the first problem with more data.
+
+**6. Full table scan without an index.**
+Without an index, the one-city query reads the whole `clean_sales` table (74.7 ms at 100%).
+Fix: an index on `insee_code`, which makes it 19 to 32 times faster.
