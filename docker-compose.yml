@@ -14,6 +14,7 @@ services:
     volumes: 
       - ./data:/data
       - ./sql:/sql
+      - ./measure:/measure
     depends_on:
       db:
         condition: service_healthy

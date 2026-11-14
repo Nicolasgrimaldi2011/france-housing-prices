@@ -13,4 +13,5 @@ USING (year, sale_date, price, insee_code)
 WHERE s.surface >= 9
   AND s.price / s.surface BETWEEN 500 AND 25000;
 
+CREATE INDEX idx_clean_sales_insee ON clean_sales (insee_code);
 SELECT COUNT(*) FROM clean_sales;
